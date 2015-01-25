@@ -10,13 +10,13 @@ import psutil
 # I DO NOT TAKE ANY RESPONSIBILITY FOR MONEY, TIME OR OTHERWISE LOST IN
 # THE USE / ABUSE OF THIS SCRIPT
 # Requires chrome, chromedriver, psutil
-global ozbargainurl, amazonsite, amazonuser, amazonpass, amazonloginbase
-amazonloginbase = "https://www.amazon.com"
+global ozbargainurl, amazonsite, username, password, amazonUrl
+amazonUrl = "https://www.amazon.com"
 
 global driver
 
 def parseOptions(argv):
-    global ozbargainurl, amazonuser, amazonpass, amazonsite, amazonloginbase
+    global ozbargainurl, username, password, amazonsite, amazonUrl
     try:
         opts, args = getopt.getopt(argv,"d:u:p:c:",[])
     except getopt.GetoptError:
@@ -26,9 +26,9 @@ def parseOptions(argv):
         if opt == '-d':
             ozbargainurl = "https://www.ozbargain.com.au/node/" + arg
         elif opt == '-u':
-            amazonuser = arg
+            username = arg
         elif opt == '-p':
-            amazonpass = arg
+            password = arg
         elif opt == '-c':
             if arg != 'us' and arg != 'au':
                 usage()
@@ -49,8 +49,8 @@ def killChromeDrivers():
             proc.kill()
 
 def setUp():
-    validate(amazonuser != '', 'Username is empty')
-    validate(amazonpass != '', 'Password is empty')
+    validate(username != '', 'Username is empty')
+    validate(password != '', 'Password is empty')
     validate(ozbargainurl != '', 'Deal URL is empty')
     global driver
     driver = webdriver.Chrome()
@@ -70,11 +70,11 @@ def main(argv):
 
 # Sign in to Amazon and check
 def signInToAmazon():
-    print('Log in to ' + amazonloginbase)
-    driver.get(amazonloginbase)
+    print('Log in to ' + amazonUrl)
+    driver.get(amazonUrl)
     driver.find_element_by_id('nav-your-account').click()
-    driver.find_element_by_id('ap_email').send_keys(amazonuser)
-    driver.find_element_by_id('ap_password').send_keys(amazonpass)
+    driver.find_element_by_id('ap_email').send_keys(username)
+    driver.find_element_by_id('ap_password').send_keys(password)
     driver.find_element_by_id('signInSubmit-input').click()
     validate(WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'nav-signin-text'))).text != 'Sign in', 'Amazon sign in failed')
 
