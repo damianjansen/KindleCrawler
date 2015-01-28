@@ -40,7 +40,7 @@ def parse_options(argv):
                 amazonUrl = amazonUrl + '.' + arg
 
 def usage():
-    print 'AmazonFreeBookCrawler.py -g "<genre;genre;...>" -u <amazonusername> -p <amazonpassword> -c <amazoncountry(us|au)>'
+    print 'AmazonFreeBookCrawler.py -g "<all || genre;genre;...>" -u <amazonusername> -p <amazonpassword> -c <amazoncountry(us|au)>'
 
 def signal_handler(signal, frame):
         print('\nCtrl+C pressed, forcefully closing.\n')
@@ -75,11 +75,15 @@ def tearDown():
     driver.quit()
 
 def main(argv):
+    global categories
     signal.signal(signal.SIGINT, signal_handler)
     kill_chrome_drivers()
     parse_options(argv)
     setUp()
     availableCategories = getCategories()
+    if categories[0] == "all":
+        categories = availableCategories.keys()
+        print("Selecting all categories")
     validate_selected_categories(availableCategories)
     signInToAmazon()
     for category in categories:
@@ -151,8 +155,10 @@ def buyBookIfFree(url):
     if not isBookFree():
         print booktitle + ' is NOT free'
         return
-    time.sleep(1)
     print 'Buying ' + booktitle
+    time.sleep(1)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'buyButton')))
+    time.sleep(1)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'buyButton'))).click()
 
 # Check if book is free
