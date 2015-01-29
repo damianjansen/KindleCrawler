@@ -8,4 +8,4 @@ python TAAmazonBookBuyer.py -d dealID -u amazonusername -p amazonpassword -c ama
 
 Given a genre, will crawl for and purchase free books on Amazon
 
-python AmazonFreeBookCrawler.py -g "all || genre;genre;..." -u amazonusername -p amazonpassword -c amazoncountry(us|au) -r(educed only)
+python AmazonFreeBookCrawler.py -g "all || genre;genre;..." -u amazonusername -p amazonpassword -c amazoncountry(us|au) -r(educed only) -d devicedeliver
