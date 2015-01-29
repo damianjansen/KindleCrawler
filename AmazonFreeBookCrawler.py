@@ -167,8 +167,12 @@ def buyBookIfFree(url):
     print 'Buying ' + booktitle
     time.sleep(1)
     if alternateDevice != "":
-        select = Select(WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'buyDropdown'))).find_element_by_tag_name('select'))
-        select.select_by_visible_text(alternateDevice)
+        if len(driver.find_elements_by_id('buyDropdown')) > 0:
+            select = Select(WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'buyDropdown'))).find_element_by_tag_name('select'))
+            select.select_by_visible_text(alternateDevice)
+        else:
+            print booktitle + ' not available to alternate devices'
+            return True
     time.sleep(1)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'buyButton'))).click()
     return True
