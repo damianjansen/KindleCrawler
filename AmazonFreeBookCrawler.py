@@ -1,5 +1,6 @@
 #! python
 from selenium import webdriver
+from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
@@ -10,15 +11,15 @@ import psutil
 # I DO NOT TAKE ANY RESPONSIBILITY FOR MONEY, TIME OR OTHERWISE LOST IN
 # THE USE / ABUSE OF THIS SCRIPT
 # Requires chrome, chromedriver, psutil
-global driver, amazonsite, username, password, amazonUrl, genre, reducedOnly, freeEnded, pageNum, categories, categoryDict, maxPages
+global driver, amazonsite, username, password, amazonUrl, genre, reducedOnly, freeEnded, pageNum, categories, categoryDict, maxPages, alternateDevice
 amazonUrl = "https://www.amazon.com"
 maxPages = 400
 
 def parse_options(argv):
-    global username, password, amazonsite, amazonUrl, genre, reducedOnly, categories
+    global username, password, amazonsite, amazonUrl, genre, reducedOnly, categories, alternateDevice
     reducedOnly = False
     try:
-        opts, args = getopt.getopt(argv,"g:u:p:c:r",[])
+        opts, args = getopt.getopt(argv,"g:u:p:c:d:r",[])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -31,6 +32,8 @@ def parse_options(argv):
             password = arg
         elif opt == '-r':
             reducedOnly = True
+        elif opt == '-d':
+            alternateDevice = arg
         elif opt == '-c':
             if arg != 'us' and arg != 'au':
                 usage()
@@ -87,7 +90,7 @@ def main(argv):
     validate_selected_categories(availableCategories)
     signInToAmazon()
     for category in categories:
-        print(availableCategories.get(category))
+        print("Trawling category " + category)
         buy_books(availableCategories.get(category)+'&page=')
     tearDown()
 
@@ -107,10 +110,10 @@ def getCategories():
 def signInToAmazon():
     print('Log in to ' + amazonUrl)
     driver.get(amazonUrl)
-    driver.find_element_by_id('nav-your-account').click()
-    driver.find_element_by_id('ap_email').send_keys(username)
-    driver.find_element_by_id('ap_password').send_keys(password)
-    driver.find_element_by_id('signInSubmit-input').click()
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'nav-your-account'))).click()
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'ap_email'))).send_keys(username)
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'ap_password'))).send_keys(password)
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'signInSubmit-input'))).click()
     validate(WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'nav-signin-text'))).text != 'Sign in', 'Amazon sign in failed')
 
 # Get the list of URLs from the pages
@@ -119,7 +122,10 @@ def buy_books(baseUrl):
     print "Find links"
     while paginate(pageNum, baseUrl):
         pageNum = pageNum + 1
-        iterateBooks(getBookLinks())
+        if not iterateBooks(getBookLinks()):
+            print "Ran out of free books!"
+            break
+    print 'Category done'
 
 # Get the links for books from the page
 def getBookLinks():
@@ -139,8 +145,11 @@ def paginate(pageNum, baseUrl):
 # Iterate through the given list of book links
 def iterateBooks(listUrls):
     print(str(len(listUrls)) + ' books found')
+    free_book_found = False
     for url in listUrls:
-        buyBookIfFree(url)
+        if buyBookIfFree(url):
+            free_book_found = True
+    return free_book_found
 
 # Check if the item is free and not previously purchased, commit
 def buyBookIfFree(url):
@@ -148,18 +157,21 @@ def buyBookIfFree(url):
     booktitle = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'btAsinTitle'))).text.strip()
     if reducedOnly and len(driver.find_elements_by_class_name('listPrice')) <= 0:
         print 'Skip normally free' + booktitle
-        return
+        return True
     if alreadyBought():
         print 'Already bought ' + booktitle
-        return
+        return True
     if not isBookFree():
         print booktitle + ' is NOT free'
-        return
+        return False
     print 'Buying ' + booktitle
     time.sleep(1)
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'buyButton')))
+    if alternateDevice != "":
+        select = Select(WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'buyDropdown'))).find_element_by_tag_name('select'))
+        select.select_by_visible_text(alternateDevice)
     time.sleep(1)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'buyButton'))).click()
+    return True
 
 # Check if book is free
 def isBookFree():
