@@ -4,22 +4,26 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-import sys, getopt, time, signal
+from selenium.common.exceptions import TimeoutException
+import sys, getopt, time, signal, codecs, traceback
 import psutil
 
 #
 # I DO NOT TAKE ANY RESPONSIBILITY FOR MONEY, TIME OR OTHERWISE LOST IN
 # THE USE / ABUSE OF THIS SCRIPT
 # Requires chrome, chromedriver, psutil
-global driver, amazonsite, username, password, amazonUrl, genre, reducedOnly, freeEnded, pageNum, categories, categoryDict, maxPages, alternateDevice
+global driver, amazonsite, username, password, amazonUrl, genre, reducedOnly, freeEnded, pageNum, categories, categoryDict, maxPages, memfile, alternateDevice
 amazonUrl = "https://www.amazon.com"
 maxPages = 400
+memory = {}
+alternateDevice = ''
 
+# Parse the options from the command line
 def parse_options(argv):
-    global username, password, amazonsite, amazonUrl, genre, reducedOnly, categories, alternateDevice
+    global username, password, amazonsite, amazonUrl, genre, reducedOnly, categories, alternateDevice, memfile
     reducedOnly = False
     try:
-        opts, args = getopt.getopt(argv,"g:u:p:c:d:r",[])
+        opts, args = getopt.getopt(argv,"g:u:p:c:d:rm:",[])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -34,6 +38,8 @@ def parse_options(argv):
             reducedOnly = True
         elif opt == '-d':
             alternateDevice = arg
+        elif opt == '-m':
+            memfile = arg
         elif opt == '-c':
             if arg != 'us' and arg != 'au':
                 usage()
@@ -45,6 +51,7 @@ def parse_options(argv):
 def usage():
     print 'AmazonFreeBookCrawler.py -g "<all || genre;genre;...>" -u <amazonusername> -p <amazonpassword> -c <amazoncountry(us|au)>'
 
+# Handle Ctrl+C
 def signal_handler(signal, frame):
         print('\nCtrl+C pressed, forcefully closing.\n')
         tearDown()
@@ -55,7 +62,7 @@ def validate_selected_categories(categoryDict):
     driver.find_element_by_id('ref_154606011')
     for genre in categories:
         if genre not in categoryDict:
-            print(genre + ' not available. Valid categories:')
+            safe_print(genre + ' not available. Valid categories:')
             print(categoryDict.keys())
             exit(1)
 
@@ -68,8 +75,17 @@ def kill_chrome_drivers():
             proc.kill()
 
 def setUp():
+    global memory
     validate(username != '', 'Username is empty')
     validate(password != '', 'Password is empty')
+    if memfile:
+        fileread = open(memfile, 'r')
+        for line in fileread:
+            title = line.split('||')[0]
+            url = line.split('||')[1]
+            memory[title] = url
+        fileread.close()
+        print('Found ' + str(len(memory.keys())) + ' books in memory')
     global driver
     driver = webdriver.Chrome()
 
@@ -132,6 +148,9 @@ def getBookLinks():
     urls = []
     listtable = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 's-results-list-atf'))).find_elements_by_class_name('s-result-item')
     for element in listtable:
+        if 'This item is currently not available.' in element.text:
+            print 'Item not available, skip'
+            continue
         urls.append(element.find_element_by_class_name('s-access-detail-page').get_attribute('href'))
     return urls
 
@@ -144,42 +163,89 @@ def paginate(pageNum, baseUrl):
 
 # Iterate through the given list of book links
 def iterateBooks(listUrls):
+    global memory
     print(str(len(listUrls)) + ' books found')
     free_book_found = False
     for url in listUrls:
+        book_id = get_book_id(url)
+        safe_print(book_id)
+        if book_id in memory.keys():
+            safe_print(str(book_id) + ' found in memory, skipping')
+            free_book_found = True
+            continue
         if buyBookIfFree(url):
             free_book_found = True
     return free_book_found
 
+
+# Search for url identifier
+def get_book_id(bookurl):
+    tokens = bookurl.split('/')
+    if len(tokens) >= 3:
+        return tokens[3]
+    safe_print('ID not found in ' + bookurl)
+    return ''
+
+# Write book title and id to file
+def write_known_book(key, value):
+    if key != '':
+        try:
+            with codecs.open(memfile, 'a', 'utf-8') as memorywrite:
+                memorywrite.write(unicode(key + '||' + value + '\n'))
+            memorywrite.close()
+        except:
+            print "Failed to write book to file"
+
 # Check if the item is free and not previously purchased, commit
 def buyBookIfFree(url):
     driver.get(url)
+    mem_id = get_book_id(url)
     booktitle = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'btAsinTitle'))).text.strip()
     if reducedOnly and len(driver.find_elements_by_class_name('listPrice')) <= 0:
-        print 'Skip normally free' + booktitle
+        safe_print('Skip normally free' + booktitle)
         return True
     if alreadyBought():
-        print 'Already bought ' + booktitle
+        write_known_book(mem_id, booktitle)
+        safe_print('Already bought ' + booktitle)
         return True
     if not isBookFree():
-        print booktitle + ' is NOT free'
+        safe_print(booktitle + ' is NOT free')
         return False
-    print 'Buying ' + booktitle
+    safe_print('Buying ' + booktitle)
     time.sleep(1)
-    if alternateDevice != "":
-        if len(driver.find_elements_by_id('buyDropdown')) > 0:
-            select = Select(WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'buyDropdown'))).find_element_by_tag_name('select'))
-            select.select_by_visible_text(alternateDevice)
-        else:
-            print booktitle + ' not available to alternate devices'
-            return True
+    if not select_alternate_device(booktitle):
+        return True
     time.sleep(1)
     WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'buyButton'))).click()
+    write_known_book(mem_id, booktitle)
+    return True
+
+# Select other device to deliver to, if specified
+def select_alternate_device(booktitle):
+    if alternateDevice != "":
+        if len(driver.find_elements_by_id('buyDropdown')) > 0:
+            select = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'buyDropdown'))).find_element_by_tag_name('select')
+            options_box = select.find_elements_by_tag_name("option")
+            options = []
+            for option in options_box:
+                options.append(option.text)
+            if alternateDevice not in options:
+                safe_print(booktitle + ' cannot be delivered to the specified device ' + alternateDevice)
+                return False
+            Select(select).select_by_visible_text(alternateDevice)
+            return True
+        else:
+            safe_print(booktitle + ' not available to alternate devices')
+            return False
     return True
 
 # Check if book is free
 def isBookFree():
-    priceLarge = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'priceLarge')))
+    try:
+        priceLarge = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'priceLarge')))
+    except TimeoutException:
+        print 'No pricing available'
+        return False
     if priceLarge.text.strip() != '$0.00':
         return False
     return True
@@ -191,6 +257,12 @@ def alreadyBought():
         if 'You purchased' in element.text:
             return True
     return False
+
+def safe_print(msg):
+    try:
+        print str(unicode(msg.encode('utf-8')))
+    except Exception, e:
+        print 'Something broke trying to print... ' + e.message
 
 def validate(condition, message):
     if not condition:
