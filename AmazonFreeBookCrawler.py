@@ -20,18 +20,18 @@ except ImportError:
 # I DO NOT TAKE ANY RESPONSIBILITY FOR MONEY, TIME OR OTHERWISE LOST IN
 # THE USE / ABUSE OF THIS SCRIPT
 # Requires chrome, chromedriver, psutil
-global driver, amazonsite, username, password, amazonUrl, genre, reducedOnly, freeEnded, pageNum, categories, categoryDict, maxPages, memfile, alternateDevice
+global driver, amazonsite, username, password, amazonUrl, genre, reducedOnly, freeEnded, pageNum, categories, categoryDict, maxPages, memfile, alternateDevice,driverpath
 amazonUrl = "https://www.amazon.com"
 maxPages = 400
 memory = {}
 alternateDevice = ''
-
+driverpath = "chromedriver"
 # Parse the options from the command line
 def parse_options(argv):
-    global username, password, amazonsite, amazonUrl, genre, reducedOnly, categories, alternateDevice, memfile
+    global username, password, amazonsite, amazonUrl, genre, reducedOnly, categories, alternateDevice, memfile,driverpath
     reducedOnly = False
     try:
-        opts, args = getopt.getopt(argv,"g:u:p:c:d:rm:",[])
+        opts, args = getopt.getopt(argv,"g:u:p:c:d:rm:e:",[])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -55,6 +55,8 @@ def parse_options(argv):
             amazonsite = arg
             if arg != 'us':
                 amazonUrl = amazonUrl + '.' + arg
+        elif opt == "-e":
+            driverpath = arg + '/' + driverpath
 
 # Print usage and exit
 def usage():
@@ -102,7 +104,7 @@ def setUp():
     global driver
     chromeOptions = webdriver.ChromeOptions()
     chromeOptions.add_experimental_option("prefs", {'profile.default_content_settings.images': 2})
-    driver = webdriver.Chrome(port=4444,chrome_options=chromeOptions)
+    driver = webdriver.Chrome(executable_path=driverpath,port=4444,chrome_options=chromeOptions)
 
 
 # Shut down cleanly
