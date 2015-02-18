@@ -88,7 +88,7 @@ def kill_chrome_drivers():
 
 # Get driver, memory and auth set up
 def setUp():
-    global memory
+    global memory, memfile
     validate(username != '', 'Username is empty')
     validate(password != '', 'Password is empty')
     if memfile:
@@ -102,7 +102,7 @@ def setUp():
     global driver
     chromeOptions = webdriver.ChromeOptions()
     chromeOptions.add_experimental_option("prefs", {'profile.default_content_settings.images': 2})
-    driver = webdriver.Chrome(chrome_options=chromeOptions)
+    driver = webdriver.Chrome(port=4444,chrome_options=chromeOptions)
 
 
 # Shut down cleanly
