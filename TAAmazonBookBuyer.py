@@ -1,5 +1,6 @@
 #! python
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
@@ -102,12 +103,15 @@ def buyBookIfFree(url):
         print booktitle + ' is NOT free'
         return
     print 'Buying ' + booktitle
-    driver.find_element_by_id('buyButton').click()
+    try:
+        driver.find_element_by_id('buyButton').click()
+    except NoSuchElementException:
+        driver.find_element_by_id('mas-buy-button').click()
 
 # Check if book is free
 def isBookFree():
     priceLarge = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'priceLarge')))
-    if priceLarge.text.strip() != '$0.00':
+    if priceLarge.text.strip() != '$0.00' and priceLarge.text.strip() != "FREE":
         return False
     return True
 

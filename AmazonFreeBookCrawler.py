@@ -1,12 +1,20 @@
 #! python
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 import sys, getopt, time, signal, codecs, traceback
-import psutil
+global psutilavailable
+
+try:
+    import psutil
+    psutilavailable = True
+except ImportError:
+    psutilavailable = False
+    print "Failed to find psutil - kill chromedriver manually!"
 
 #
 # I DO NOT TAKE ANY RESPONSIBILITY FOR MONEY, TIME OR OTHERWISE LOST IN
@@ -48,6 +56,7 @@ def parse_options(argv):
             if arg != 'us':
                 amazonUrl = amazonUrl + '.' + arg
 
+# Print usage and exit
 def usage():
     print 'AmazonFreeBookCrawler.py -g "<all || genre;genre;...>" -u <amazonusername> -p <amazonpassword> -c <amazoncountry(us|au)>'
 
@@ -57,6 +66,7 @@ def signal_handler(signal, frame):
         tearDown()
         sys.exit(0)
 
+# Ensure the categories selected by the user exist
 def validate_selected_categories(categoryDict):
     driver.get(amazonUrl + "/gp/search/ref=sr_hi_2?rh=n%3A133140011%2Cn%3A%21133141011%2Cn%3A154606011&bbn=154606011")
     driver.find_element_by_id('ref_154606011')
@@ -68,12 +78,15 @@ def validate_selected_categories(categoryDict):
 
 # Prevent any other chromedrivers from interfering
 def kill_chrome_drivers():
+    if not psutilavailable:
+        return
     PROCNAME = "chromedriver"
     for proc in psutil.process_iter():
         if proc.name == PROCNAME:
             print("Kill " + proc.name + "(" + str(proc.pid) + ")")
             proc.kill()
 
+# Get driver, memory and auth set up
 def setUp():
     global memory
     validate(username != '', 'Username is empty')
@@ -87,12 +100,17 @@ def setUp():
         fileread.close()
         print('Found ' + str(len(memory.keys())) + ' books in memory')
     global driver
-    driver = webdriver.Chrome()
+    chromeOptions = webdriver.ChromeOptions()
+    chromeOptions.add_experimental_option("prefs", {'profile.default_content_settings.images': 2})
+    driver = webdriver.Chrome(chrome_options=chromeOptions)
 
+
+# Shut down cleanly
 def tearDown():
     driver.close()
     driver.quit()
 
+# Go!
 def main(argv):
     global categories
     signal.signal(signal.SIGINT, signal_handler)
@@ -154,8 +172,8 @@ def getBookLinks():
         urls.append(element.find_element_by_class_name('s-access-detail-page').get_attribute('href'))
     return urls
 
+# Get the next page of books
 def paginate(pageNum, baseUrl):
-    # Make this better by checking for non-free books
     if pageNum < 400:
         driver.get(baseUrl+str(pageNum))
         return True
@@ -215,8 +233,11 @@ def buyBookIfFree(url):
     time.sleep(1)
     if not select_alternate_device(booktitle):
         return True
-    time.sleep(1)
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'buyButton'))).click()
+    time.sleep(2)
+    try:
+        driver.find_element_by_id('buyButton').click()
+    except NoSuchElementException:
+        driver.find_element_by_id('mas-buy-button').click()
     write_known_book(mem_id, booktitle)
     return True
 
@@ -239,14 +260,15 @@ def select_alternate_device(booktitle):
             return False
     return True
 
-# Check if book is free
+# Check if book is free ($0.00 or 'free')
 def isBookFree():
     try:
         priceLarge = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'priceLarge')))
     except TimeoutException:
         print 'No pricing available'
         return False
-    if priceLarge.text.strip() != '$0.00':
+    if priceLarge.text.strip() != '$0.00' and priceLarge.text.strip().upper() != "FREE":
+        print 'Book not free ('+priceLarge.text.strip()+')'
         return False
     return True
 
@@ -258,12 +280,14 @@ def alreadyBought():
             return True
     return False
 
+# Print book titles with special characters
 def safe_print(msg):
     try:
         print str(unicode(msg.encode('utf-8')))
     except Exception, e:
         print 'Something broke trying to print... ' + e.message
 
+# Validate some condition
 def validate(condition, message):
     if not condition:
         print('Script failed for ' + message)
