@@ -103,7 +103,7 @@ def setUp():
         print('Found ' + str(len(memory.keys())) + ' books in memory')
     global driver
     chromeOptions = webdriver.ChromeOptions()
-    chromeOptions.add_experimental_option("prefs", {'profile.default_content_settings.images': 2})
+    chromeOptions.add_experimental_option("prefs", {'profile.managed_default_content_settings.images': 2})
     driver = webdriver.Chrome(executable_path=driverpath,port=4444,chrome_options=chromeOptions)
 
 
@@ -123,6 +123,7 @@ def main(argv):
     if categories[0] == "all":
         categories = availableCategories.keys()
         print("Selecting all categories")
+        print("Categories " + str(categories))
     validate_selected_categories(availableCategories)
     signInToAmazon()
     for category in categories:
@@ -146,11 +147,12 @@ def getCategories():
 def signInToAmazon():
     print('Log in to ' + amazonUrl)
     driver.get(amazonUrl)
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'nav-your-account'))).click()
+    #WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'nav-your-account'))).click()
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.LINK_TEXT, 'Your Amazon.com'))).click()
     WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'ap_email'))).send_keys(username)
     WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'ap_password'))).send_keys(password)
-    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'signInSubmit-input'))).click()
-    validate(WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'nav-signin-text'))).text != 'Sign in', 'Amazon sign in failed')
+    WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'signInSubmit'))).click()
+    validate('Hello' in WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'nav-link-accountList'))).find_element_by_class_name('nav-line-1').text, 'Amazon sign in failed')
 
 # Get the list of URLs from the pages
 def buy_books(baseUrl):
@@ -220,8 +222,8 @@ def write_known_book(key, value):
 def buyBookIfFree(url):
     driver.get(url)
     mem_id = get_book_id(url)
-    booktitle = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'btAsinTitle'))).text.strip()
-    if reducedOnly and len(driver.find_elements_by_class_name('listPrice')) <= 0:
+    booktitle = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'ebooksProductTitle'))).text.strip()
+    if reducedOnly and len(driver.find_elements_by_class_name('ebooks-price-savings')) <= 0:
         safe_print('Skip normally free' + booktitle)
         return True
     if alreadyBought():
@@ -232,15 +234,16 @@ def buyBookIfFree(url):
         safe_print(booktitle + ' is NOT free')
         return False
     safe_print('Buying ' + booktitle)
-    time.sleep(1)
+    driver.implicitly_wait(3)
     if not select_alternate_device(booktitle):
         return True
-    time.sleep(2)
     try:
-        driver.find_element_by_id('buyButton').click()
+        driver.find_element_by_id('one-click-button').click()
     except NoSuchElementException:
         driver.find_element_by_id('mas-buy-button').click()
     write_known_book(mem_id, booktitle)
+    safe_print("Bought " + booktitle)
+    driver.implicitly_wait(0)
     return True
 
 # Select other device to deliver to, if specified
@@ -262,21 +265,27 @@ def select_alternate_device(booktitle):
             return False
     return True
 
-# Check if book is free ($0.00 or 'free')
+# Check if book is free ($0.00)
 def isBookFree():
+    alt_price = False
     try:
-        priceLarge = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'priceLarge')))
+        kindle_price = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'kindle-price')))
     except TimeoutException:
-        print 'No pricing available'
-        return False
-    if priceLarge.text.strip() != '$0.00' and priceLarge.text.strip().upper() != "FREE":
-        print 'Book not free ('+priceLarge.text.strip()+')'
-        return False
-    return True
+        print 'Abnormal price display, trying basic'
+        alt_price = True
+        try:
+            kindle_price = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "a-color-price")))
+        except TimeoutException:
+            print 'No pricing available'
+            return False
+    if kindle_price.text.strip().startswith('Kindle Price: $0.00') or (alt_price and kindle_price.text.strip().startswith('$0.00')):
+        return True
+    print 'Book not free ('+kindle_price.text.strip()+')'
+    return False
 
 # Check if already purchased
 def alreadyBought():
-    divs = driver.find_elements_by_class_name('iou_div')
+    divs = driver.find_elements_by_id('ebooksInstantOrderUpdate')
     for element in divs:
         if 'You purchased' in element.text:
             return True
