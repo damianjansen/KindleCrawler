@@ -28,7 +28,7 @@ alternateDevice = ''
 driverpath = "chromedriver"
 # Parse the options from the command line
 def parse_options(argv):
-    global username, password, amazonsite, amazonUrl, genre, reducedOnly, categories, alternateDevice, memfile,driverpath
+    global username, password, amazonsite, amazonUrl, genre, reducedOnly, categories, alternateDevice, memfile, driverpath
     reducedOnly = False
     try:
         opts, args = getopt.getopt(argv,"g:u:p:c:d:rm:e:",[])
@@ -71,10 +71,9 @@ def signal_handler(signal, frame):
 # Ensure the categories selected by the user exist
 def validate_selected_categories(categoryDict):
     driver.get(amazonUrl + "/gp/search/ref=sr_hi_2?rh=n%3A133140011%2Cn%3A%21133141011%2Cn%3A154606011&bbn=154606011")
-    driver.find_element_by_id('ref_154606011')
     for genre in categories:
         if genre not in categoryDict:
-            safe_print(genre + ' not available. Valid categories:')
+            safe_print(genre + ' category not available. Valid categories:')
             print(categoryDict.keys())
             exit(1)
 
@@ -135,10 +134,11 @@ def main(argv):
 def getCategories():
     catarray = {}
     driver.get("http://www.amazon.com/gp/search/ref=sr_hi_2?rh=n%3A133140011%2Cn%3A%21133141011%2Cn%3A154606011&bbn=154606011&sort=price-asc-rank")
-    listitems = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'ref_154606011'))).find_elements_by_tag_name('li')
+    leftNavContainer = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'leftNavContainer')))
+    listitems = leftNavContainer.find_element_by_class_name('s-ref-indent-two').find_elements_by_tag_name('li')
     for listitem in listitems:
-        if len(listitem.find_elements_by_class_name('refinementLink')) > 0:
-            name = listitem.find_element_by_class_name('refinementLink').text
+        if len(listitem.find_elements_by_class_name('s-ref-text-link')) > 0:
+            name = listitem.find_element_by_class_name('s-ref-text-link').text
             link = listitem.find_element_by_tag_name('a').get_attribute('href')
             catarray[name] = link
     return catarray
