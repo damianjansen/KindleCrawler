@@ -6,6 +6,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
+
 import sys, getopt, time, signal, codecs, traceback
 global psutilavailable
 
@@ -14,13 +15,16 @@ try:
     psutilavailable = True
 except ImportError:
     psutilavailable = False
-    print "Failed to find psutil - kill chromedriver manually!"
+    print("Failed to find psutil - kill chromedriver manually!")
 
 #
 # I DO NOT TAKE ANY RESPONSIBILITY FOR MONEY, TIME OR OTHERWISE LOST IN
 # THE USE / ABUSE OF THIS SCRIPT
 # Requires chrome, chromedriver, psutil
-global driver, amazonsite, username, password, amazonUrl, genre, reducedOnly, freeEnded, pageNum, categories, categoryDict, maxPages, memfile, alternateDevice,driverpath
+global driver, amazonsite, username, password, amazonUrl, genre
+global reducedOnly, freeEnded, pageNum, categories, categoryDict, maxPages
+global memfile, alternateDevice, driverpath
+
 amazonUrl = "https://www.amazon.com"
 maxPages = 400
 memory = {}
@@ -60,7 +64,7 @@ def parse_options(argv):
 
 # Print usage and exit
 def usage():
-    print 'AmazonFreeBookCrawler.py -g "<all || genre;genre;...>" -u <amazonusername> -p <amazonpassword> -c <amazoncountry(us|au)>'
+    print('AmazonFreeBookCrawler.py -g "<all || genre;genre;...>" -u <amazonusername> -p <amazonpassword> -c <amazoncountry(us|au)>')
 
 # Handle Ctrl+C
 def signal_handler(signal, frame):
@@ -157,13 +161,13 @@ def signInToAmazon():
 # Get the list of URLs from the pages
 def buy_books(baseUrl):
     pageNum = 1
-    print "Find links"
+    print("Find links")
     while paginate(pageNum, baseUrl):
         pageNum = pageNum + 1
         if not iterateBooks(getBookLinks()):
-            print "Ran out of free books!"
+            print("Ran out of free books!")
             break
-    print 'Category done'
+    print('Category done')
 
 # Get the links for books from the page
 def getBookLinks():
@@ -171,7 +175,7 @@ def getBookLinks():
     listtable = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 's-results-list-atf'))).find_elements_by_class_name('s-result-item')
     for element in listtable:
         if 'This item is currently not available.' in element.text:
-            print 'Item not available, skip'
+            print('Item not available, skip')
             continue
         urls.append(element.find_element_by_class_name('s-access-detail-page').get_attribute('href'))
     return urls
@@ -190,7 +194,7 @@ def iterateBooks(listUrls):
     free_book_found = False
     for url in listUrls:
         book_id = get_book_id(url)
-        safe_print(book_id)
+        safe_print('Checking ' + book_id)
         if book_id in memory.keys():
             safe_print(str(book_id) + ' found in memory, skipping')
             free_book_found = True
@@ -213,10 +217,10 @@ def write_known_book(key, value):
     if key != '':
         try:
             with codecs.open(memfile, 'a', 'utf-8') as memorywrite:
-                memorywrite.write(unicode(key + '||' + value + '\n'))
+                memorywrite.write(str(key + '||' + value + '\n'))
             memorywrite.close()
         except:
-            print "Failed to write book to file"
+            print("Failed to write book to file")
 
 # Check if the item is free and not previously purchased, commit
 def buyBookIfFree(url):
@@ -271,16 +275,16 @@ def isBookFree():
     try:
         kindle_price = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'kindle-price')))
     except TimeoutException:
-        print 'Abnormal price display, trying basic'
+        print('Abnormal price display, trying basic')
         alt_price = True
         try:
             kindle_price = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "a-color-price")))
         except TimeoutException:
-            print 'No pricing available'
+            print('No pricing available')
             return False
     if kindle_price.text.strip().startswith('Kindle Price: $0.00') or (alt_price and kindle_price.text.strip().startswith('$0.00')):
         return True
-    print 'Book not free ('+kindle_price.text.strip()+')'
+    print('Book not free (' + kindle_price.text.strip() + ')')
     return False
 
 # Check if already purchased
@@ -294,9 +298,9 @@ def alreadyBought():
 # Print book titles with special characters
 def safe_print(msg):
     try:
-        print str(unicode(msg.encode('utf-8')))
-    except Exception, e:
-        print 'Something broke trying to print... ' + e.message
+        print(str(msg.encode('utf-8')))
+    except Exception as e:
+        print('Something broke trying to print... ' + e.message)
 
 # Validate some condition
 def validate(condition, message):
