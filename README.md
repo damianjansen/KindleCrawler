@@ -1,11 +1,8 @@
-# TAaamazonbuyer
-
-Buy stuff from Tightarse's links on Ozbargain, because he does such a fine job.
-
-python TAAmazonBookBuyer.py -d dealID -u amazonusername -p amazonpassword -c amazoncountry(us|au)
-
 # AmazonFreeBookCrawler
 
 Given a genre, will crawl for and purchase free books on Amazon
+Requires Python3, Psutil, Selenium Webdriver.
 
-python AmazonFreeBookCrawler.py -g "all || genre;genre;..." -u amazonusername -p amazonpassword -c amazoncountry(us|au) -r(educed only) -d devicedeliver -m memoryfile
+## Usage
+python AmazonFreeBookCrawler.py -g "all || genre;genre;..." -u amazonusername -p amazonpassword -c amazoncountry(us|au) -r(educed only) -d deviceToDeliverTo -m memoryfile
+
